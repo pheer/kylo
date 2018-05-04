@@ -108,6 +108,22 @@ public class ExecutePySpark extends AbstractNiFiProcessor {
         .addValidator(multipleFilesExistValidator())
         .expressionLanguageSupported(true)
         .build();
+    public static final PropertyDescriptor PYSPARK_JARS = new PropertyDescriptor.Builder()
+            .name("Additional Python jars to add to Classpath")
+            .description("(Comma separated) Full path for additional jars to be submitted with the application. "
+                         + "NOTE: Ensure that no spaces are present between the comma separated file locations.")
+            .required(false)
+            .addValidator(multipleFilesExistValidator())
+            .expressionLanguageSupported(true)
+            .build();
+    public static final PropertyDescriptor PYSPARK_FILES = new PropertyDescriptor.Builder()
+            .name("Additional Python files to add to Classpath")
+            .description("(Comma separated) Full path for additional files to be submitted with the application. "
+                         + "NOTE: Ensure that no spaces are present between the comma separated file locations.")
+            .required(false)
+            .addValidator(multipleFilesExistValidator())
+            .expressionLanguageSupported(true)
+            .build();
     public static final PropertyDescriptor SPARK_MASTER = new PropertyDescriptor.Builder()
         .name("Spark Master")
         .description("The Spark master. NOTE: Please ensure that you have not set this in your application.")
@@ -301,6 +317,8 @@ public class ExecutePySpark extends AbstractNiFiProcessor {
         properties.add(PYSPARK_APP_ARGS);
         properties.add(PYSPARK_APP_NAME);
         properties.add(PYSPARK_ADDITIONAL_FILES);
+        properties.add(PYSPARK_JARS);
+        properties.add(PYSPARK_FILES);
         properties.add(SPARK_MASTER);
         properties.add(SPARK_YARN_DEPLOY_MODE);
         properties.add(YARN_QUEUE);
@@ -349,6 +367,8 @@ public class ExecutePySpark extends AbstractNiFiProcessor {
             final String pySparkAppArgs = context.getProperty(PYSPARK_APP_ARGS).evaluateAttributeExpressions(flowFile).getValue();
             final String pySparkAppName = context.getProperty(PYSPARK_APP_NAME).evaluateAttributeExpressions(flowFile).getValue();
             final String pySparkAdditionalFiles = context.getProperty(PYSPARK_ADDITIONAL_FILES).evaluateAttributeExpressions(flowFile).getValue();
+            final String pySparkJars = context.getProperty(PYSPARK_JARS).evaluateAttributeExpressions(flowFile).getValue();
+            final String pySparkFiles = context.getProperty(PYSPARK_FILES).evaluateAttributeExpressions(flowFile).getValue();
             final String sparkMaster = context.getProperty(SPARK_MASTER).evaluateAttributeExpressions(flowFile).getValue().trim().toLowerCase();
             final String sparkYarnDeployMode = context.getProperty(SPARK_YARN_DEPLOY_MODE).evaluateAttributeExpressions(flowFile).getValue();
             final String yarnQueue = context.getProperty(YARN_QUEUE).evaluateAttributeExpressions(flowFile).getValue();
@@ -374,6 +394,20 @@ public class ExecutePySpark extends AbstractNiFiProcessor {
             if (!StringUtils.isEmpty(pySparkAdditionalFiles)) {
                 pySparkAdditionalFilesArray = pySparkUtils.getCsvValuesAsArray(pySparkAdditionalFiles);
                 logger.info("Provided python files: {}", new Object[]{pySparkUtils.getCsvStringFromArray(pySparkAdditionalFilesArray)});
+            }
+
+            /* Get additional python files */
+            String[] pySparkJarsArray = null;
+            if (!StringUtils.isEmpty(pySparkJars)) {
+            	pySparkJarsArray = pySparkUtils.getCsvValuesAsArray(pySparkJars);
+                logger.info("Provided python jars: {}", new Object[]{pySparkUtils.getCsvStringFromArray(pySparkJarsArray)});
+            }
+
+            /* Get additional python files */
+            String[] pySparkFilesArray = null;
+            if (!StringUtils.isEmpty(pySparkFiles)) {
+            	pySparkFilesArray = pySparkUtils.getCsvValuesAsArray(pySparkFiles);
+                logger.info("Provided python --files: {}", new Object[]{pySparkUtils.getCsvStringFromArray(pySparkFilesArray)});
             }
 
             /* Get additional config key-value pairs */
@@ -459,7 +493,20 @@ public class ExecutePySpark extends AbstractNiFiProcessor {
                     logger.info("Additional python file set to: {}", new Object[]{pySparkAdditionalFile});
                 }
             }
-
+            if (pySparkJarsArray != null && pySparkJarsArray.length > 0) {
+                for (String pySparkJar : pySparkJarsArray) {
+                    pySparkLauncher = pySparkLauncher
+                        .addJar(pySparkJar);
+                    logger.info("Additional jar set to: {}", new Object[]{pySparkJar});
+                }
+            }
+            if (pySparkFilesArray != null && pySparkFilesArray.length > 0) {
+                for (String pySparkFile : pySparkFilesArray) {
+                    pySparkLauncher = pySparkLauncher
+                        .addFile(pySparkFile);
+                    logger.info("Additional file set to: {}", new Object[]{pySparkFile});
+                }
+            }
             if (sparkMaster.equals("yarn")) {
                 pySparkLauncher = pySparkLauncher
                     .setDeployMode(sparkYarnDeployMode);
